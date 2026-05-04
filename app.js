@@ -9,6 +9,8 @@ const countEl = document.getElementById("count");
 const clearBtn = document.getElementById("clear-completed");
 
 let todos = load();
+let newlyAddedId = null;
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function load() {
   try {
@@ -28,11 +30,9 @@ function save() {
 function addTodo(text) {
   const trimmed = text.trim();
   if (!trimmed) return;
-  todos.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    text: trimmed,
-    done: false,
-  });
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  todos.push({ id, text: trimmed, done: false });
+  newlyAddedId = id;
   save();
   render();
 }
@@ -46,9 +46,23 @@ function toggleTodo(id) {
 }
 
 function deleteTodo(id) {
-  todos = todos.filter((t) => t.id !== id);
-  save();
-  render();
+  const li = list.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if (!li || reducedMotion.matches) {
+    todos = todos.filter((t) => t.id !== id);
+    save();
+    render();
+    return;
+  }
+  li.classList.add("todo-item--leaving");
+  li.addEventListener(
+    "animationend",
+    () => {
+      todos = todos.filter((t) => t.id !== id);
+      save();
+      render();
+    },
+    { once: true }
+  );
 }
 
 function clearCompleted() {
@@ -87,10 +101,15 @@ function render() {
       del.textContent = "×";
       del.addEventListener("click", () => deleteTodo(t.id));
 
+      if (t.id === newlyAddedId) {
+        li.classList.add("todo-item--new");
+      }
+
       li.append(checkbox, span, del);
       list.appendChild(li);
     }
   }
+  newlyAddedId = null;
 
   const remaining = todos.filter((t) => !t.done).length;
   countEl.textContent = `${remaining} item${remaining === 1 ? "" : "s"} left`;
